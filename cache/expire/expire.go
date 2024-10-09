@@ -15,7 +15,7 @@ type cacheHelper struct {
 }
 
 type CacheHelper interface {
-	GetInterface(ctx context.Context, key string, value interface{}) (interface{}, error)
+	GetInterface(ctx context.Context, key string) (interface{}, error)
 	SetInterface(ctx context.Context, key string, value interface{}, exppiration time.Duration) error
 }
 
@@ -30,7 +30,7 @@ func NewCacheHelper(dns string) CacheHelper {
 	}
 }
 
-func (h *cacheHelper) GetInterface(ctx context.Context, key string, value interface{}) (interface{}, error) {
+func (h *cacheHelper) GetInterface(ctx context.Context, key string) (interface{}, error) {
 	data, err := h.resdis.Get(ctx, key).Result()
 	if err != nil {
 		return nil, err
@@ -73,3 +73,4 @@ func (h *cacheHelper) SetInterface(ctx context.Context, key string, value interf
 	_ = h.resdis.Set(ctx, key, data, exppiration)
 	return nil
 }
+
