@@ -9,6 +9,7 @@ import (
 var CountryTz = map[string]string{
 	"Hungary": "Europe/Budapest",
 	"Egypt":   "Africa/Cairo",
+	"Asia":    "Asia/Ho_Chi_Minh",
 }
 
 func TimeIn(country string) time.Time {
