@@ -1,5 +1,5 @@
 package hash
-
+// learn code from https://github.com/garyburd/redigo
 import (
 	"fmt"
 	"reflect"
