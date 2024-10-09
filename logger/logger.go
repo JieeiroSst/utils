@@ -35,3 +35,19 @@ func SyslogTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 func CustomLevelEncoder(level zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
 	enc.AppendString("[" + level.CapitalString() + "]")
 }
+
+func Info(msg interface{}) {
+	ConfigZap().Info(msg)
+}
+
+func Error(msg interface{}) {
+	ConfigZap().Error(msg)
+}
+
+func Warn(msg interface{}) {
+	ConfigZap().Warn(msg)
+}
+
+func Debug(msg interface{}) {
+	ConfigZap().Debug(msg)
+}
