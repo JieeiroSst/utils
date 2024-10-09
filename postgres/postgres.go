@@ -1,11 +1,22 @@
 package postgres
 
 import (
+	"fmt"
 	"sync"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+type PostgresConfig struct {
+	PostgresqlHost     string
+	PostgresqlPort     string
+	PostgresqlUser     string
+	PostgresqlPassword string
+	PostgresqlDbname   string
+	PostgresqlSSLMode  bool
+	PgDriver           string
+}
 
 var (
 	instance *PostgresConnect
@@ -27,6 +38,8 @@ func GetPostgresConnInstance(dns string) *PostgresConnect {
 	return instance
 }
 
-func NewPostgresConn(dns string) *gorm.DB {
+func NewPostgresConn(postgres PostgresConfig) *gorm.DB {
+	dns := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Shanghai",
+		postgres.PostgresqlHost, postgres.PostgresqlUser, postgres.PostgresqlPassword, postgres.PostgresqlDbname, postgres.PostgresqlPort)
 	return GetPostgresConnInstance(dns).db
 }
