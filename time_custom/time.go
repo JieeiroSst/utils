@@ -1,8 +1,8 @@
 package time_custom
 
 import (
-	"fmt"
 	"time"
+
 	"github.com/JIeeiroSst/utils/logger"
 )
 
@@ -502,4 +502,16 @@ func TimeInCountry(country string) time.Time {
 		logger.ConfigZap().Error(err)
 	}
 	return time.Now().In(loc)
+}
+
+func FormatTimeYear(t time.Time) string {
+	return t.Format("02-Jan-2006 15:04:05")
+}
+
+func FormatDate(t time.Time) string {
+	return t.Format("02-Jan-2006")
+}
+
+func FormatTimeHour(t time.Time) string {
+	return t.Format("15:04:05")
 }
