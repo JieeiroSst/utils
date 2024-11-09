@@ -515,3 +515,9 @@ func FormatDate(t time.Time) string {
 func FormatTimeHour(t time.Time) string {
 	return t.Format("15:04:05")
 }
+
+func FormatUnixTime(unixTimes int) time.Time {
+	unixTimestamp := int64(unixTimes)
+
+	return time.Unix(unixTimestamp, 0)
+}
