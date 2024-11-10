@@ -17,6 +17,7 @@ type cacheHelper struct {
 type CacheHelper interface {
 	GetInterface(ctx context.Context, key string) (interface{}, error)
 	SetInterface(ctx context.Context, key string, value interface{}, exppiration time.Duration) error
+	Removekey(ctx context.Context, key string) error
 }
 
 func NewCacheHelper(dns string) CacheHelper {
