@@ -74,3 +74,9 @@ func (h *cacheHelper) SetInterface(ctx context.Context, key string, value interf
 	return nil
 }
 
+func (h *cacheHelper) Removekey(ctx context.Context, key string) error {
+	if err := h.resdis.Del(ctx, key).Err(); err != nil {
+		return err
+	}
+	return nil
+}
