@@ -50,8 +50,10 @@ func Paginate(value interface{}, pagination *Pagination, db *gorm.DB, preloads .
 
 	return func(db *gorm.DB) *gorm.DB {
 		tx := db.Offset(pagination.GetOffset()).Limit(pagination.GetLimit())
-		for _, preload := range preloads {
-			tx.Preload(preload)
+		if len(preloads) > 0 {
+			for _, preload := range preloads {
+				tx.Preload(preload)
+			}
 		}
 		return tx.Order(pagination.GetSort())
 	}
