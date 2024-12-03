@@ -1,6 +1,7 @@
 package time_custom
 
 import (
+	"context"
 	"time"
 
 	"github.com/JIeeiroSst/utils/logger"
@@ -499,7 +500,8 @@ func TimeInCountry(country string) time.Time {
 	name := CountryTz[country]
 	loc, err := time.LoadLocation(name)
 	if err != nil {
-		logger.ConfigZap().Error(err)
+		// logger.ConfigZap().Error(err)
+		logger.ConfigZap(context.Background()).Sugar().Infof("%v", err)
 	}
 	return time.Now().In(loc)
 }

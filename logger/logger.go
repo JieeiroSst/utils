@@ -1,31 +1,44 @@
 package logger
 
 import (
+	"context"
+	"os"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-func ConfigZap() *zap.SugaredLogger {
-	cfg := zap.Config{
-		Encoding:    "json",
-		Level:       zap.NewAtomicLevelAt(zap.InfoLevel),
-		OutputPaths: []string{"stderr"},
+const (
+	Key = "TRANSACTION_ID_KEY"
+)
 
-		EncoderConfig: zapcore.EncoderConfig{
-			MessageKey:   "message",
-			TimeKey:      "time",
-			LevelKey:     "level",
-			CallerKey:    "caller",
-			EncodeCaller: zapcore.FullCallerEncoder,
-			EncodeLevel:  CustomLevelEncoder,
-			EncodeTime:   SyslogTimeEncoder,
-		},
-	}
+func generateTransactionID() string {
+	return uuid.New().String()
+}
 
-	logger, _ := cfg.Build()
-	return logger.Sugar()
+func TracerID(ctx context.Context) context.Context {
+	tid := generateTransactionID()
+	return context.WithValue(ctx, Key, tid)
+}
+
+func ToString(ctx context.Context) string {
+	tid := ctx.Value(Key)
+	return tid.(string)
+}
+
+func ConfigZap(ctx context.Context) *zap.Logger {
+	ctx = TracerID(ctx)
+	config := zap.NewProductionConfig()
+	logger, _ := config.Build(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		return zapcore.NewTee(core, zapcore.NewCore(
+			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+			zapcore.AddSync(zapcore.AddSync(zapcore.Lock(os.Stdout))),
+			zapcore.InfoLevel,
+		).With([]zapcore.Field{zap.String("transaction_id", ToString(ctx))}))
+	}))
+	return logger
 }
 
 func SyslogTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
@@ -36,18 +49,22 @@ func CustomLevelEncoder(level zapcore.Level, enc zapcore.PrimitiveArrayEncoder) 
 	enc.AppendString("[" + level.CapitalString() + "]")
 }
 
-func Info(msg interface{}) {
-	ConfigZap().Info(msg)
+func Info(ctx context.Context, msg string, args ...interface{}) {
+	logger := ConfigZap(ctx)
+	logger.Sugar().Infof(msg, args...)
 }
 
-func Error(msg interface{}) {
-	ConfigZap().Error(msg)
+func Error(ctx context.Context, msg string, args ...interface{}) {
+	logger := ConfigZap(ctx)
+	logger.Sugar().Infof(msg, args...)
 }
 
-func Warn(msg interface{}) {
-	ConfigZap().Warn(msg)
+func Warn(ctx context.Context, msg string, args ...interface{}) {
+	logger := ConfigZap(ctx)
+	logger.Sugar().Infof(msg, args...)
 }
 
-func Debug(msg interface{}) {
-	ConfigZap().Debug(msg)
+func Debug(ctx context.Context, msg string, args ...interface{}) {
+	logger := ConfigZap(ctx)
+	logger.Sugar().Infof(msg, args...)
 }

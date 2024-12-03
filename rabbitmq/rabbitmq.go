@@ -22,7 +22,7 @@ func GetRabbitMQConnectInstance(dns string) *RabbitMQConnect {
 	once.Do(func() {
 		conn, err := amqp.Dial(dns)
 		if err != nil {
-			logger.ConfigZap().Errorf("Failed to connect to RabbitMQ: %v", err)
+			logger.ConfigZap(context.Background()).Sugar().Infof("Failed to connect to RabbitMQ: %v", err)
 		}
 		defer conn.Close()
 		instance = &RabbitMQConnect{conn: conn}

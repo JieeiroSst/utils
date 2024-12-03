@@ -1,6 +1,7 @@
 package circuit_breaker
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"time"
@@ -11,7 +12,7 @@ import (
 )
 
 type ClientCircuitBreakerProxy struct {
-	logger *zap.SugaredLogger
+	logger *zap.Logger
 	gb     *gobreaker.CircuitBreaker
 }
 
@@ -21,14 +22,14 @@ func shouldBeSwitchedToOpen(counts gobreaker.Counts) bool {
 }
 
 func NewClientCircuitBreakerProxy() *ClientCircuitBreakerProxy {
-	logger := logger.ConfigZap()
+	logger := logger.ConfigZap(context.Background())
 
 	cfg := gobreaker.Settings{
 		Interval:    5 * time.Second,
 		Timeout:     7 * time.Second,
 		ReadyToTrip: shouldBeSwitchedToOpen,
 		OnStateChange: func(_ string, from gobreaker.State, to gobreaker.State) {
-			logger.Info("state changed from", from.String(), "to", to.String())
+			logger.Sugar().Infof("state changed from %v %v", from, to)
 		},
 	}
 
@@ -42,16 +43,16 @@ func (c *ClientCircuitBreakerProxy) Send(endpoint string) (interface{}, error) {
 	data, err := c.gb.Execute(func() (interface{}, error) {
 		resp, err := http.Get(endpoint)
 		if err != nil {
-			c.logger.Error(err)
+			c.logger.Sugar().Error(err)
 		}
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			c.logger.Error(err)
+			c.logger.Sugar().Error(err)
 		}
 		return string(body), err
 	})
 	if err != nil {
-		c.logger.Error(err)
+		c.logger.Sugar().Error(err)
 	}
 	return data, nil
 }
