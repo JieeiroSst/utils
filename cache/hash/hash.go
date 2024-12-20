@@ -1,163 +1,125 @@
 package hash
-// learn code from https://github.com/garyburd/redigo
+
 import (
-	"fmt"
+	"context"
+	"encoding/json"
 	"reflect"
-	"strings"
-	"sync"
+
+	"github.com/redis/go-redis/v9"
 )
 
-type fieldSpec struct {
-	name      string
-	index     []int
-	omitEmpty bool
+type cacheHelper struct {
+	redis *redis.Client
 }
 
-type structSpec struct {
-	m map[string]*fieldSpec
-	l []*fieldSpec
+type CacheHelper interface {
+	GetInterface(ctx context.Context, key string, dataType interface{}) (interface{}, error)
+	SetInterface(ctx context.Context, key string, value map[string]interface{}) error
+	Removekey(ctx context.Context, key string) error
 }
 
-var (
-	structSpecMutex sync.RWMutex
-	structSpecCache = make(map[reflect.Type]*structSpec)
-)
-
-type Args []interface{}
-
-func (args Args) Add(value ...interface{}) Args {
-	return append(args, value...)
+func NewCacheHelper(dns string) CacheHelper {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     dns,
+		Password: "",
+		DB:       0,
+	})
+	return &cacheHelper{
+		redis: rdb,
+	}
 }
 
-func (args Args) AddFlat(v interface{}) Args {
+func (h *cacheHelper) GetInterface(ctx context.Context, key string, dataType interface{}) (interface{}, error) {
+	pipe := h.redis.Pipeline()
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	fields := compileStructSpec(dataType)
+	cmd := pipe.HMGet(ctx, key, fields...)
+
+	var data interface{}
+	if err := cmd.Scan(&data); err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func (h *cacheHelper) SetInterface(ctx context.Context, key string, value map[string]interface{}) error {
+	marshaledValues := make(map[string]interface{}, len(value))
+	for k, v := range value {
+		var err error
+		marshaledValues[k], err = h.marshalValue(v)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := h.redis.HMSet(ctx, key, marshaledValues).Err()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (h *cacheHelper) marshalValue(v interface{}) (interface{}, error) {
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Struct:
-		args = flattenStruct(args, rv)
+		dataJson, err := json.Marshal(&v)
+		if err != nil {
+			return nil, err
+		}
+		return dataJson, nil
 	case reflect.Slice:
+		array := make([]interface{}, 0, rv.Len())
 		for i := 0; i < rv.Len(); i++ {
-			args = append(args, rv.Index(i).Interface())
+			elem, err := h.marshalValue(rv.Index(i).Interface())
+			if err != nil {
+				return nil, err
+			}
+			array = append(array, elem)
 		}
+		return array, nil
 	case reflect.Map:
-		for _, k := range rv.MapKeys() {
-			args = append(args, k.Interface(), rv.MapIndex(k).Interface())
-		}
-	case reflect.Ptr:
-		if rv.Type().Elem().Kind() == reflect.Struct {
-			if !rv.IsNil() {
-				args = flattenStruct(args, rv.Elem())
+		mappedValues := make(map[string]interface{}, rv.Len())
+		for _, kk := range rv.MapKeys() {
+			elem, err := h.marshalValue(rv.MapIndex(kk).Interface())
+			if err != nil {
+				return nil, err
 			}
-		} else {
-			args = append(args, v)
+			mappedValues[kk.Interface().(string)] = elem
 		}
+		return mappedValues, nil
 	default:
-		args = append(args, v)
+		return v, nil
 	}
-	return args
 }
 
-func flattenStruct(args Args, v reflect.Value) Args {
-	ss := structSpecForType(v.Type())
-	for _, fs := range ss.l {
-		fv := v.FieldByIndex(fs.index)
-		if fs.omitEmpty {
-			var empty = false
-			switch fv.Kind() {
-			case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
-				empty = fv.Len() == 0
-			case reflect.Bool:
-				empty = !fv.Bool()
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				empty = fv.Int() == 0
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-				empty = fv.Uint() == 0
-			case reflect.Float32, reflect.Float64:
-				empty = fv.Float() == 0
-			case reflect.Interface, reflect.Ptr:
-				empty = fv.IsNil()
-			}
-			if empty {
-				continue
-			}
-		}
-		args = append(args, fs.name, fv.Interface())
+func (h *cacheHelper) Removekey(ctx context.Context, key string) error {
+	if err := h.redis.Del(ctx, key).Err(); err != nil {
+		return err
 	}
-	return args
+
+	return nil
 }
 
-func structSpecForType(t reflect.Type) *structSpec {
-	structSpecMutex.RLock()
-	ss, found := structSpecCache[t]
-	structSpecMutex.RUnlock()
-	if found {
-		return ss
+func compileStructSpec(dataStr interface{}) []string {
+	array := make([]string, 0)
+	rv := reflect.ValueOf(dataStr)
+	if rv.Kind() != reflect.Struct {
+		return nil
 	}
 
-	structSpecMutex.Lock()
-	defer structSpecMutex.Unlock()
-	ss, found = structSpecCache[t]
-	if found {
-		return ss
-	}
+	v := reflect.TypeOf(dataStr)
 
-	ss = &structSpec{m: make(map[string]*fieldSpec)}
-	compileStructSpec(t, make(map[string]int), nil, ss)
-	structSpecCache[t] = ss
-	return ss
-}
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		tag := field.Tag.Get("json")
 
-func compileStructSpec(t reflect.Type, depth map[string]int, index []int, ss *structSpec) {
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
-		switch {
-		case f.PkgPath != "" && !f.Anonymous:
-		case f.Anonymous:
-			if f.Type.Kind() == reflect.Struct {
-				compileStructSpec(f.Type, depth, append(index, i), ss)
-			}
-		default:
-			fs := &fieldSpec{name: f.Name}
-			tag := f.Tag.Get("redis")
-			p := strings.Split(tag, ",")
-			if len(p) > 0 {
-				if p[0] == "-" {
-					continue
-				}
-				if len(p[0]) > 0 {
-					fs.name = p[0]
-				}
-				for _, s := range p[1:] {
-					switch s {
-					case "omitempty":
-						fs.omitEmpty = true
-					default:
-						panic(fmt.Errorf("redigo: unknown field tag %s for type %s", s, t.Name()))
-					}
-				}
-			}
-			d, found := depth[fs.name]
-			if !found {
-				d = 1 << 30
-			}
-			switch {
-			case len(index) == d:
-				delete(ss.m, fs.name)
-				j := 0
-				for i := 0; i < len(ss.l); i++ {
-					if fs.name != ss.l[i].name {
-						ss.l[j] = ss.l[i]
-						j += 1
-					}
-				}
-				ss.l = ss.l[:j]
-			case len(index) < d:
-				fs.index = make([]int, len(index)+1)
-				copy(fs.index, index)
-				fs.index[len(index)] = i
-				depth[fs.name] = len(index)
-				ss.m[fs.name] = fs
-				ss.l = append(ss.l, fs)
-			}
-		}
+		array = append(array, tag)
 	}
+	return array
 }
