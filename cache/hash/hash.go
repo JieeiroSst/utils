@@ -13,7 +13,7 @@ type cacheHelper struct {
 }
 
 type CacheHelper interface {
-	GetInterface(ctx context.Context, key string, dataType interface{}) (interface{}, error)
+	GetInterface(ctx context.Context, key string, dataType interface{}) (map[string]interface{}, error)
 	SetInterface(ctx context.Context, key string, value map[string]interface{}) error
 	Removekey(ctx context.Context, key string) error
 }
@@ -29,7 +29,7 @@ func NewCacheHelper(dns string) CacheHelper {
 	}
 }
 
-func (h *cacheHelper) GetInterface(ctx context.Context, key string, dataType interface{}) (interface{}, error) {
+func (h *cacheHelper) GetInterface(ctx context.Context, key string, dataType interface{}) (map[string]interface{}, error) {
 	pipe := h.redis.Pipeline()
 	_, err := pipe.Exec(ctx)
 	if err != nil {
@@ -39,7 +39,7 @@ func (h *cacheHelper) GetInterface(ctx context.Context, key string, dataType int
 	fields := compileStructSpec(dataType)
 	cmd := pipe.HMGet(ctx, key, fields...)
 
-	var data interface{}
+	data := make(map[string]interface{}, 0)
 	if err := cmd.Scan(&data); err != nil {
 		return nil, err
 	}
