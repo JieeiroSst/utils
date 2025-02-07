@@ -53,3 +53,33 @@ if _, err := c.Do("HMSET", redis.Args{}.Add("id1").AddFlat(&p1)...); err != nil 
 	// Validate token
 	fmt.Println("Token exists:", vault.ValidateToken(token))
 ```
+
+```
+func main() {
+	tokenManager := NewTokenManager(
+		[]byte("access-secret-key"),
+		[]byte("refresh-secret-key"),
+		15*time.Minute, // Access token TTL
+		24*7*time.Hour, // Refresh token TTL (1 week)
+	)
+
+	accessToken, refreshToken, err := tokenManager.CreateTokenPair("user123")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	claims, err := tokenManager.ValidateToken(accessToken, false)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("Access token for user %s is valid\n", claims.UserID)
+
+	newAccess, newRefresh, err := tokenManager.RefreshTokens(refreshToken)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("New access token: %s, newRefresh: %s\n", newAccess, newRefresh)
+}
+
+```
