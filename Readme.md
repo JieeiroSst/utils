@@ -81,5 +81,68 @@ func main() {
 	}
 	fmt.Printf("New access token: %s, newRefresh: %s\n", newAccess, newRefresh)
 }
+```
 
+```
+	LRU
+	Initialize Redis client
+	client := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+
+	Create a new LRU cache with maximum 1000 entries
+	cache := NewLRUCache(client, "my-cache", 1000)
+
+	ctx := context.Background()
+
+	Set a value
+	err := cache.Set(ctx, "key1", "value1")
+
+	Get a value
+	value, err := cache.Get(ctx, "key1")
+```
+
+```
+	LFU
+	ctx := context.Background()
+    cache, err := NewCache("localhost:6379", "", "my-hash")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer cache.Close()
+ 	
+	Example usage
+    type User struct {
+        ID   int    `json:"id"`
+        Name string `json:"name"`
+    }
+
+    Store a user
+    user := User{ID: 1, Name: "John"}
+    err = cache.Set(ctx, "user:1", user, time.Hour)
+    
+     Retrieve a user
+    var retrievedUser User
+    err = cache.Get(ctx, "user:1", &retrievedUser)
+```
+
+```
+	FIFO
+	Initialize Redis client
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+
+	Create a new FIFO cache with maximum 1000 items
+	cache := NewFIFOCache(rdb, "my-cache", 1000)
+
+	Set a value
+	ctx := context.Background()
+	err := cache.Set(ctx, "key1", "value1")
+
+	Get a value
+	value, err := cache.Get(ctx, "key1")
+
+	Delete a value
+	err = cache.Delete(ctx, "key1")
 ```
