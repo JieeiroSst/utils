@@ -3,6 +3,7 @@ package postgres
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -33,6 +34,17 @@ func GetPostgresConnInstance(dns string) *PostgresConnect {
 		if err != nil {
 			panic(err)
 		}
+
+		sqlDB, err := db.DB()
+		if err != nil {
+			panic(err)
+		}
+
+		sqlDB.SetMaxIdleConns(10)
+		sqlDB.SetMaxOpenConns(100)
+		sqlDB.SetConnMaxLifetime(time.Hour)
+		sqlDB.SetConnMaxIdleTime(30 * time.Minute)
+
 		instance = &PostgresConnect{db: db}
 	})
 	return instance
