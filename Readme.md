@@ -232,3 +232,11 @@ func ExampleUnaryClientInterceptor() {
 	}()
 }
 ```
+
+```
+use library copy
+
+var from []SourceStruct
+var to []DestStruct
+err := CopyStructArrays(&from, &to)
+```
