@@ -239,4 +239,11 @@ use library copy
 var from []SourceStruct
 var to []DestStruct
 err := CopyStructArrays(&from, &to)
+
+var from []SourceStruct
+var to []DestStruct
+err := CopyObject(&from, &to)
+if err != nil {
+    fmt.Printf("Error copying with reflection: %v\n", err)
+}
 ```
