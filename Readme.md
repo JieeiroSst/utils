@@ -247,3 +247,73 @@ if err != nil {
     fmt.Printf("Error copying with reflection: %v\n", err)
 }
 ```
+
+
+```
+
+func ExampleConsumer() {
+	brokers := []string{"localhost:9092"}
+	topics := []string{"example-topic"}
+
+	handler := func(message *sarama.ConsumerMessage) error {
+		fmt.Printf("Consumer received message: Topic=%s, Partition=%d, Offset=%d, Key=%s, Value=%s\n",
+			message.Topic, message.Partition, message.Offset, string(message.Key), string(message.Value))
+		return nil
+	}
+
+	consumer, err := NewConsumer(brokers, topics, handler)
+	if err != nil {
+		log.Fatalf("Failed to create consumer: %v", err)
+	}
+	defer consumer.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-signals
+		log.Println("Shutting down consumer...")
+		cancel()
+	}()
+
+	if err := consumer.Consume(ctx); err != nil {
+		log.Fatalf("Error consuming: %v", err)
+	}
+}
+
+func ExampleSubscriber() {
+	brokers := []string{"localhost:9092"}
+	topics := []string{"example-topic"}
+	groupID := "example-group"
+
+	handler := func(message *sarama.ConsumerMessage) error {
+		fmt.Printf("Subscriber received message: Topic=%s, Partition=%d, Offset=%d, Key=%s, Value=%s\n",
+			message.Topic, message.Partition, message.Offset, string(message.Key), string(message.Value))
+		return nil
+	}
+
+	subscriber, err := NewSubscriber(brokers, topics, groupID, handler)
+	if err != nil {
+		log.Fatalf("Failed to create subscriber: %v", err)
+	}
+	defer subscriber.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-signals
+		log.Println("Shutting down subscriber...")
+		cancel()
+	}()
+
+	if err := subscriber.Subscribe(ctx); err != nil {
+		log.Fatalf("Error subscribing: %v", err)
+	}
+}
+
+```
