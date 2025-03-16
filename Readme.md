@@ -247,3 +247,195 @@ if err != nil {
     fmt.Printf("Error copying with reflection: %v\n", err)
 }
 ```
+
+
+```
+
+
+func ExampleProducer() {
+	brokers := []string{"localhost:9092"}
+	topic := "example-topic"
+
+	client, err := NewKafkaClient(brokers)
+	if err != nil {
+		log.Fatalf("Failed to create Kafka client: %v", err)
+	}
+	defer client.Close()
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
+	done := make(chan bool)
+
+	go func() {
+		messageCount := 1
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				key := []byte(fmt.Sprintf("key-%d", messageCount))
+				value := []byte(fmt.Sprintf("message-%d-sent-at-%s", messageCount, time.Now().Format(time.RFC3339)))
+
+				partition, offset, err := client.SendMessage(topic, key, value)
+				if err != nil {
+					log.Printf("Failed to send message: %v", err)
+				} else {
+					log.Printf("Message sent successfully: topic=%s, partition=%d, offset=%d, key=%s, value=%s",
+						topic, partition, offset, string(key), string(value))
+				}
+
+				messageCount++
+				time.Sleep(2 * time.Second)
+			}
+		}
+	}()
+
+	<-signals
+	log.Println("Shutting down...")
+
+	close(done)
+
+	time.Sleep(1 * time.Second)
+	log.Println("Application stopped")
+}
+
+func ExampleConsumer() {
+	brokers := []string{"localhost:9092"}
+	topics := []string{"example-topic"}
+
+	handler := func(message *sarama.ConsumerMessage) error {
+		fmt.Printf("Consumer received message: Topic=%s, Partition=%d, Offset=%d, Key=%s, Value=%s\n",
+			message.Topic, message.Partition, message.Offset, string(message.Key), string(message.Value))
+		return nil
+	}
+
+	consumer, err := NewConsumer(brokers, topics, handler)
+	if err != nil {
+		log.Fatalf("Failed to create consumer: %v", err)
+	}
+	defer consumer.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-signals
+		log.Println("Shutting down consumer...")
+		cancel()
+	}()
+
+	if err := consumer.Consume(ctx); err != nil {
+		log.Fatalf("Error consuming: %v", err)
+	}
+}
+
+func ExampleSubscriber() {
+	brokers := []string{"localhost:9092"}
+	topics := []string{"example-topic"}
+	groupID := "example-group"
+
+	handler := func(message *sarama.ConsumerMessage) error {
+		fmt.Printf("Subscriber received message: Topic=%s, Partition=%d, Offset=%d, Key=%s, Value=%s\n",
+			message.Topic, message.Partition, message.Offset, string(message.Key), string(message.Value))
+		return nil
+	}
+
+	subscriber, err := NewSubscriber(brokers, topics, groupID, handler)
+	if err != nil {
+		log.Fatalf("Failed to create subscriber: %v", err)
+	}
+	defer subscriber.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-signals
+		log.Println("Shutting down subscriber...")
+		cancel()
+	}()
+
+	if err := subscriber.Subscribe(ctx); err != nil {
+		log.Fatalf("Error subscribing: %v", err)
+	}
+}
+
+```
+
+
+```
+RABBITMQ
+
+func main() {
+	producer := rabbitmq.NewProducer(
+		"amqp://guest:guest@localhost:5672/",
+		"my_exchange",
+		"orders.new",
+	)
+	
+	err := producer.Connect()
+	if err != nil {
+		log.Fatalf("Failed to connect: %v", err)
+	}
+	defer producer.Close()
+	
+	consumer := rabbitmq.NewConsumer(
+		"amqp://guest:guest@localhost:5672/",
+		"my_exchange",
+		"orders_queue",
+		"orders.new",
+	)
+	
+	err = consumer.Connect()
+	if err != nil {
+		log.Fatalf("Failed to connect: %v", err)
+	}
+	defer consumer.Close()
+	
+	err = consumer.Consume(func(body []byte) error {
+		log.Printf("Received message: %s", body)
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("Failed to start consuming: %v", err)
+	}
+	
+	subscriber := rabbitmq.NewSubscriber(
+		"amqp://guest:guest@localhost:5672/",
+		"my_exchange",
+		"notifications_queue",
+	)
+	
+	err = subscriber.Connect()
+	if err != nil {
+		log.Fatalf("Failed to connect: %v", err)
+	}
+	defer subscriber.Close()
+	
+	err = subscriber.Subscribe("notifications.#", func(body []byte) error {
+		log.Printf("Received notification: %s", body)
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("Failed to subscribe: %v", err)
+	}
+	
+	ctx := context.Background()
+	err = subscriber.Start(ctx)
+	if err != nil {
+		log.Fatalf("Failed to start subscriber: %v", err)
+	}
+	
+	err = producer.Publish("application/json", []byte(`{"id": 1, "status": "new"}`))
+	if err != nil {
+		log.Fatalf("Failed to publish: %v", err)
+	}
+	
+	time.Sleep(10 * time.Second)
+}
+```
