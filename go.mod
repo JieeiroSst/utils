@@ -6,12 +6,14 @@ require (
 	github.com/IBM/sarama v1.45.1
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/gin-gonic/gin v1.10.0
+	github.com/go-sql-driver/mysql v1.8.1
 	github.com/gocql/gocql v1.7.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/consul/api v1.29.4
 	github.com/jinzhu/copier v0.4.0
+	github.com/jmoiron/sqlx v1.4.0
 	github.com/mercari/go-circuitbreaker v0.0.2
 	github.com/nats-io/nats.go v1.37.0
 	github.com/olivere/elastic/v7 v7.0.32
@@ -21,11 +23,13 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.56.3
+	gorm.io/driver/mysql v1.5.7
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.12
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
