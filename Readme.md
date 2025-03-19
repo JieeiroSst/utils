@@ -849,7 +849,7 @@ logger.InitDefault(logger.Config{
 	})
 
 	ctx := context.Background()
-	ctx = tracer.EnsureTracerID(ctx)
+	ctx = trace_id.EnsureTracerID(ctx)
 
 	logger.WithContext(ctx).Info("Processing request",
 		zap.String("user_id", "12345"),
