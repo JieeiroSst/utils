@@ -840,3 +840,30 @@ func batchPublisherExample(ctx context.Context, conn *Connection) {
 }
 
 ```
+
+```
+logger.InitDefault(logger.Config{
+		Level:      "info",
+		JSONFormat: true,
+		AppName:    "my-service",
+	})
+
+	ctx := context.Background()
+	ctx = tracer.EnsureTracerID(ctx)
+
+	logger.WithContext(ctx).Info("Processing request",
+		zap.String("user_id", "12345"),
+		zap.Int("items", 42),
+	)
+
+	if err := processItem(ctx); err != nil {
+		logger.WithContext(ctx).WithError(err).Error("Failed to process item")
+	}
+
+	book := Book{
+		ID:   "1",
+		Name: "San Pham",
+	}
+
+	logger.WithContext(ctx).Info("info book", zap.Any("book", book))
+```
