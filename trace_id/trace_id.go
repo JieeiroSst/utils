@@ -2,7 +2,6 @@ package trace_id
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 )
