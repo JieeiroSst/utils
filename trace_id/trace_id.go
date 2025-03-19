@@ -2,24 +2,46 @@ package trace_id
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 )
 
-const (
-	Key = "TRANSACTION_ID_KEY"
-)
+type ctxKey string
 
-func generateTransactionID() string {
-	return uuid.New().String()
+const ContextKey ctxKey = "tracer-id"
+
+type TracerID string
+
+func NewTracerID() TracerID {
+	return TracerID(uuid.New().String())
 }
 
-func TracerID(ctx context.Context) context.Context {
-	tid := generateTransactionID()
-	return context.WithValue(ctx, Key, tid)
+func (t TracerID) String() string {
+	return string(t)
 }
 
-func ToString(ctx context.Context) string {
-	tid := ctx.Value(Key)
-	return tid.(string)
+func WithTracerID(ctx context.Context, tracerID TracerID) context.Context {
+	return context.WithValue(ctx, ContextKey, tracerID)
+}
+
+func GetTracerID(ctx context.Context) TracerID {
+	id, ok := ctx.Value(ContextKey).(TracerID)
+	if !ok {
+		return ""
+	}
+	return id
+}
+
+func EnsureTracerID(ctx context.Context) context.Context {
+	if id := GetTracerID(ctx); id != "" {
+		return ctx
+	}
+	id := NewTracerID()
+	return WithTracerID(ctx, id)
+}
+
+func WithContext(ctx context.Context) context.Context {
+	ctx = EnsureTracerID(ctx)
+	return ctx
 }
