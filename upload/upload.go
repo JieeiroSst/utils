@@ -63,9 +63,7 @@ func (m *media3Repo) fileUploadRequest(file []byte, query string) (path string, 
 	resp.Body.Close()
 
 	type ResponseMedia struct {
-		Data struct {
-			URL string `json:"url"`
-		} `json:"data"`
+		URL string `json:"url"`
 	}
 
 	var media ResponseMedia
@@ -74,7 +72,7 @@ func (m *media3Repo) fileUploadRequest(file []byte, query string) (path string, 
 	if err != nil {
 		return
 	}
-	path = media.Data.URL
+	path = media.URL
 	return
 }
 
