@@ -874,3 +874,47 @@ logger.InitDefault(logger.Config{
 
 	logger.WithContext(ctx).Info("info book", zap.Any("book", book))
 ```
+
+```
+rollback gorm 
+func ExampleUsage() {
+	var db *gorm.DB
+
+	err := ExecuteWithRollbackGorm(db, func(tx *gorm.DB) error {
+		user := User{Name: "John"}
+		if err := tx.Create(&user).Error; err != nil {
+			return err
+		}
+
+		product := Product{Title: "New Product"}
+		if err := tx.Create(&product).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("Transaction failed: %v", err)
+	}
+}
+
+sql 
+func InsertUser(db *sql.DB, user User) error {
+    tx, err := db.Begin()
+    if err != nil {
+        return fmt.Errorf("failed to begin transaction: %v", err)
+    }
+    
+    _, err = tx.Exec("INSERT INTO users (name, email) VALUES (?, ?)", user.Name, user.Email)
+    if err != nil {
+        return rollbackTransaction(tx, fmt.Errorf("failed to insert user: %v", err))
+    }
+    
+    if err = tx.Commit(); err != nil {
+        return fmt.Errorf("failed to commit transaction: %v", err)
+    }
+    
+    return nil
+}
+```
