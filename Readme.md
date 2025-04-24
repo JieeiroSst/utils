@@ -1,10 +1,7 @@
 ```
-```
 git tag v1.0.0
 git push origin v1.0.0
 ```
-```
-
 ```
 func doSomething(ctx context.Context) {
 	// Extract the tracer ID from the context

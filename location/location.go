@@ -17,6 +17,8 @@ type IPInfo struct {
 	Country  string `json:"country"`
 	Loc      string `json:"loc"`
 	Timezone string `json:"timezone"`
+	Postal   string `json:"postal"`
+	Org      string `json:"org"`
 }
 
 var (
