@@ -915,3 +915,95 @@ func InsertUser(db *sql.DB, user User) error {
     return nil
 }
 ```
+
+
+```
+feature_toggles
+
+use 
+
+func main() {
+	// Create a new feature service with hardcoded user_id
+	fs, err := NewFeatureService("features.yml", "user-123")
+	if err != nil {
+		log.Fatalf("Failed to initialize feature service: %v", err)
+	}
+	defer fs.Close()
+
+	// Check if a feature is enabled
+	if fs.BooleanFeature("new-homepage", true) {
+		fmt.Println("New homepage is enabled!")
+	} else {
+		fmt.Println("New homepage is disabled!")
+	}
+
+	// Get string configuration
+	apiEndpoint := fs.StringFeature("api-endpoint", "https://default-api.example.com")
+	fmt.Println("API Endpoint:", apiEndpoint)
+
+	// Get numeric configuration
+	retryCount := fs.IntFeature("retry-count", 3)
+	fmt.Println("Retry Count:", retryCount)
+
+	// Get JSON configuration
+	type Config struct {
+		Timeout int      `json:"timeout"`
+		Domains []string `json:"domains"`
+		Enabled bool     `json:"enabled"`
+	}
+
+	defaultConfig := Config{
+		Timeout: 30,
+		Domains: []string{"example.com"},
+		Enabled: true,
+	}
+
+	var config Config
+	err = fs.JSONFeature("advanced-config", defaultConfig, &config)
+	if err != nil {
+		log.Printf("Error getting JSON feature: %v", err)
+	} else {
+		fmt.Printf("Config: %+v\n", config)
+	}
+}
+
+data in file features.yml
+
+new-homepage:
+  percentage: 100
+  true: true
+  false: false
+  default: false
+  rule: key eq "user-123"
+
+api-endpoint:
+  percentage: 100
+  rule: key eq "user-123"
+  variations:
+    true: "https://api-v2.example.com"
+    false: "https://api-v1.example.com"
+  default: "https://api-v1.example.com"
+
+retry-count:
+  percentage: 100
+  rule: key eq "user-123"
+  variations:
+    true: 5
+    false: 3
+advanced-config:
+  percentage: 100
+  rule: key eq "user-123"
+  variations:
+    true: >
+      {
+        "timeout": 60,
+        "domains": ["api.example.com", "cdn.example.com"],
+        "enabled": true
+      }
+    false: >
+      {
+        "timeout": 30,
+        "domains": ["example.com"],
+        "enabled": false
+      }
+```
