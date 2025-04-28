@@ -963,3 +963,42 @@ func main() {
 	}
 }
 ```
+
+```
+pagination
+func GetUsers(c *fiber.Ctx) error {
+    db := database.GetDB()
+    var users []models.User
+    
+    pagination := &Pagination{
+        Limit: c.QueryInt("limit", 10),
+        Page:  c.QueryInt("page", 1),
+        Sort:  c.Query("sort", "created_at desc"),
+    }
+    
+    filters := make(map[string]interface{})
+    
+    if name := c.Query("name"); name != "" {
+        filters["name"] = name
+    }
+    
+    if ageStr := c.Query("age"); ageStr != "" {
+        if age, err := strconv.Atoi(ageStr); err == nil {
+            filters["age"] = age
+        }
+    }
+    
+    if minAgeStr := c.Query("min_age"); minAgeStr != "" {
+        if minAge, err := strconv.Atoi(minAgeStr); err == nil {
+            filters["age"] = map[string]interface{}{"gte": minAge}
+        }
+    }
+    
+    pagination.Filters = filters
+    
+    db.Scopes(Paginate(users, pagination, db, "Role")).Find(&users)
+    pagination.Rows = users
+    
+    return c.JSON(pagination)
+}
+```
