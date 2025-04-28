@@ -1,6 +1,7 @@
 package feature_toggles
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -47,6 +48,18 @@ func (c *FeatureToggleCache) RegisterToggle(name, description string, active boo
 	}
 	c.toggles[name] = toggle
 	return toggle
+}
+
+func (c *FeatureToggleCache) ExistsToggle(name string) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	_, exists := c.toggles[name]
+	if !exists {
+		return fmt.Errorf("toggle %s does not exist", name)
+	}
+
+	return nil
 }
 
 func (c *FeatureToggleCache) GetToggle(name string) (*FeatureToggle, bool) {
