@@ -925,7 +925,7 @@ use
 
 	betaFeature := cache.RegisterToggle("beta-dashboard", "New dashboard UI", false)
 
-	betaFeature.AddToWhitelist("user456")
+	betaFeature.AddToWhitelist("user456") or betaFeature.AddToWhitelists([]string{"user456"})
 
 	userID := "user45"
 

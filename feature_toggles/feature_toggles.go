@@ -64,6 +64,16 @@ func (t *FeatureToggle) AddToWhitelist(userID string) {
 	t.Whitelist[userID] = true
 }
 
+func (t *FeatureToggle) AddToWhitelists(userIDs []string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	for _, userID := range userIDs {
+		t.Whitelist[userID] = true
+	}
+
+}
+
 func (t *FeatureToggle) RemoveFromWhitelist(userID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
