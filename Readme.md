@@ -935,3 +935,31 @@ use
 		fmt.Printf("User %s: Show regular dashboard\n", userID)
 	}
 ```
+
+```
+nats 
+
+func main() {
+	nc, err := ConnectNats("nats://localhost:4222")
+	if err != nil {
+		fmt.Printf("Lỗi kết nối: %v\n", err)
+		return
+	}
+	
+	sub, err := SubscribeToSubject(nc, "example.subject", func(data []byte) {
+		fmt.Printf("Nhận được tin nhắn: %s\n", string(data))
+	})
+	if err != nil {
+		fmt.Printf("Lỗi đăng ký: %v\n", err)
+		return
+	}
+	defer CloseSubscription(sub)
+	
+	message := []byte("Xin chào NATS")
+	err = PublishMessage(nc, "example.subject", message)
+	if err != nil {
+		fmt.Printf("Lỗi gửi tin nhắn: %v\n", err)
+		return
+	}
+}
+```
