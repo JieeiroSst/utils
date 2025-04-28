@@ -55,8 +55,8 @@ func (c *FeatureToggleCache) ExistsToggle(name string) error {
 	defer c.mu.RUnlock()
 
 	_, exists := c.toggles[name]
-	if !exists {
-		return fmt.Errorf("toggle %s does not exist", name)
+	if exists {
+		return fmt.Errorf("toggle %s does exist", name)
 	}
 
 	return nil
