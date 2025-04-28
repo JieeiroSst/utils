@@ -966,6 +966,7 @@ func main() {
 
 ```
 pagination
+
 func GetUsers(c *fiber.Ctx) error {
     db := database.GetDB()
     var users []models.User
@@ -973,26 +974,20 @@ func GetUsers(c *fiber.Ctx) error {
     pagination := &Pagination{
         Limit: c.QueryInt("limit", 10),
         Page:  c.QueryInt("page", 1),
-        Sort:  c.Query("sort", "created_at desc"),
     }
+    
+    // Example: ?sort=name:asc,created_at:desc
+    sortQuery := c.Query("sort")
+    pagination.Sort = ParseSortFromQuery(sortQuery)
     
     filters := make(map[string]interface{})
     
-    if name := c.Query("name"); name != "" {
-        filters["name"] = name
-    }
-    
-    if ageStr := c.Query("age"); ageStr != "" {
-        if age, err := strconv.Atoi(ageStr); err == nil {
-            filters["age"] = age
+    c.Context().QueryArgs().VisitAll(func(key, value []byte) {
+        keyStr := string(key)
+        if keyStr != "limit" && keyStr != "page" && keyStr != "sort" {
+            filters[keyStr] = string(value)
         }
-    }
-    
-    if minAgeStr := c.Query("min_age"); minAgeStr != "" {
-        if minAge, err := strconv.Atoi(minAgeStr); err == nil {
-            filters["age"] = map[string]interface{}{"gte": minAge}
-        }
-    }
+    })
     
     pagination.Filters = filters
     

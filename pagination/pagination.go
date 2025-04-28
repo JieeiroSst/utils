@@ -7,14 +7,19 @@ import (
 	"gorm.io/gorm"
 )
 
+type SortOrder struct {
+	Field     string `json:"field"`
+	Direction string `json:"direction"`
+}
+
 type Pagination struct {
 	Limit      int                    `json:"limit,omitempty" query:"limit"`
 	Page       int                    `json:"page,omitempty" query:"page"`
-	Sort       string                 `json:"sort,omitempty" query:"sort"`
+	Sort       []SortOrder            `json:"sort,omitempty" query:"-"`
 	TotalRows  int64                  `json:"total_rows"`
 	TotalPages int                    `json:"total_pages"`
 	Rows       interface{}            `json:"rows"`
-	Filters    map[string]interface{} `json:"filters,omitempty" query:"-"` // Dynamic filters
+	Filters    map[string]interface{} `json:"filters,omitempty" query:"-"` 
 }
 
 func (p *Pagination) GetOffset() int {
@@ -35,9 +40,9 @@ func (p *Pagination) GetPage() int {
 	return p.Page
 }
 
-func (p *Pagination) GetSort() string {
-	if p.Sort == "" {
-		p.Sort = "id desc"
+func (p *Pagination) GetSort() []SortOrder {
+	if p.Sort == nil || len(p.Sort) == 0 {
+		p.Sort = []SortOrder{{Field: "id", Direction: "desc"}}
 	}
 	return p.Sort
 }
@@ -91,25 +96,21 @@ func ApplyFilters(db *gorm.DB, filters map[string]interface{}) *gorm.DB {
 	return tx
 }
 
-func ApplyDynamicSort(db *gorm.DB, sort string) *gorm.DB {
-	if sort == "" {
+func ApplyDynamicSort(db *gorm.DB, sorts []SortOrder) *gorm.DB {
+	if sorts == nil || len(sorts) == 0 {
 		return db
 	}
 
-	sortFields := strings.Split(sort, ",")
-	for _, field := range sortFields {
-		field = strings.TrimSpace(field)
-		if field != "" {
-			direction := "ASC"
-			if strings.HasPrefix(field, "-") {
-				direction = "DESC"
-				field = field[1:] 
-			}
-
-			db = db.Order(field + " " + direction)
+	tx := db
+	for _, sort := range sorts {
+		direction := strings.ToUpper(sort.Direction)
+		if direction != "ASC" && direction != "DESC" {
+			direction = "ASC"
 		}
+
+		tx = tx.Order(sort.Field + " " + direction)
 	}
-	return db
+	return tx
 }
 
 func Paginate(value interface{}, pagination *Pagination, db *gorm.DB, preloads ...string) func(db *gorm.DB) *gorm.DB {
@@ -142,4 +143,39 @@ func Paginate(value interface{}, pagination *Pagination, db *gorm.DB, preloads .
 
 		return ApplyDynamicSort(tx, pagination.GetSort())
 	}
+}
+
+
+func ParseSortFromQuery(query string) []SortOrder {
+	if query == "" {
+		return nil
+	}
+
+	sortParams := strings.Split(query, ",")
+	sortOrders := make([]SortOrder, 0, len(sortParams))
+
+	for _, param := range sortParams {
+		parts := strings.Split(strings.TrimSpace(param), ":")
+
+		if len(parts) == 2 {
+			field := parts[0]
+			direction := strings.ToLower(parts[1])
+
+			if direction != "asc" && direction != "desc" {
+				direction = "asc" 
+			}
+
+			sortOrders = append(sortOrders, SortOrder{
+				Field:     field,
+				Direction: direction,
+			})
+		} else if len(parts) == 1 && parts[0] != "" {
+			sortOrders = append(sortOrders, SortOrder{
+				Field:     parts[0],
+				Direction: "asc",
+			})
+		}
+	}
+
+	return sortOrders
 }
