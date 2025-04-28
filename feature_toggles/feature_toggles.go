@@ -1,133 +1,109 @@
 package feature_toggles
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-
-	gofeatureflag "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/retriever/fileretriever"
+	"sync"
 )
 
-type FeatureService struct {
-	client    *gofeatureflag.GoFeatureFlag
-	userID    string
-	filePath  string
-	retrieved bool
+type FeatureToggle struct {
+	name      string
+	enabled   bool
+	whitelist map[string]bool
+	mu        sync.RWMutex
 }
 
-func NewFeatureService(filePath string, userID string) (*FeatureService, error) {
-	fs := &FeatureService{
-		userID:   userID,
-		filePath: filePath,
-	}
-
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("features file not found: %s", filePath)
-	}
-
-	client, err := gofeatureflag.New(gofeatureflag.Config{
-		PollingInterval: 3,
-		Retriever: &fileretriever.Retriever{
-			Path: filePath,
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize feature flag client: %w", err)
-	}
-
-	fs.client = client
-	fs.retrieved = true
-	return fs, nil
+type FeatureManager struct {
+	toggles map[string]*FeatureToggle
+	mu      sync.RWMutex
 }
 
-func (fs *FeatureService) Close() error {
-	if fs.client != nil {
-		fs.client.Close()
+func NewFeatureManager() *FeatureManager {
+	return &FeatureManager{
+		toggles: make(map[string]*FeatureToggle),
 	}
-	return nil
 }
 
-func (fs *FeatureService) getUserContext() ffcontext.Context {
-	ctx := ffcontext.NewEvaluationContext(fs.userID)
-	return ctx
+func (fm *FeatureManager) CreateFeature(name string, enabled bool) *FeatureToggle {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+
+	toggle := &FeatureToggle{
+		name:      name,
+		enabled:   enabled,
+		whitelist: make(map[string]bool),
+	}
+
+	fm.toggles[name] = toggle
+	return toggle
 }
 
-func (fs *FeatureService) BooleanFeature(featureName string, defaultValue bool) bool {
-	if !fs.retrieved || fs.client == nil {
-		return defaultValue
-	}
+func (fm *FeatureManager) GetFeature(name string) (*FeatureToggle, bool) {
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
 
-	ctx := fs.getUserContext()
-	value, err := fs.client.BoolVariation(featureName, ctx, defaultValue)
-	if err != nil {
-		return defaultValue
-	}
-	return value
+	toggle, ok := fm.toggles[name]
+	return toggle, ok
 }
 
-func (fs *FeatureService) StringFeature(featureName string, defaultValue string) string {
-	if !fs.retrieved || fs.client == nil {
-		return defaultValue
-	}
-
-	ctx := fs.getUserContext()
-	value, err := fs.client.StringVariation(featureName, ctx, defaultValue)
-	if err != nil {
-		return defaultValue
-	}
-	return value
+func (ft *FeatureToggle) EnableFeature() {
+	ft.mu.Lock()
+	defer ft.mu.Unlock()
+	ft.enabled = true
 }
 
-func (fs *FeatureService) IntFeature(featureName string, defaultValue int) int {
-	if !fs.retrieved || fs.client == nil {
-		return defaultValue
-	}
-
-	ctx := fs.getUserContext()
-	value, err := fs.client.IntVariation(featureName, ctx, defaultValue)
-	if err != nil {
-		return defaultValue
-	}
-	return value
+func (ft *FeatureToggle) DisableFeature() {
+	ft.mu.Lock()
+	defer ft.mu.Unlock()
+	ft.enabled = false
 }
 
-func (fs *FeatureService) FloatFeature(featureName string, defaultValue float64) float64 {
-	if !fs.retrieved || fs.client == nil {
-		return defaultValue
+func (ft *FeatureToggle) IsEnabled(userID string) bool {
+	ft.mu.RLock()
+	defer ft.mu.RUnlock()
+
+	if ft.enabled {
+		return true
 	}
 
-	ctx := fs.getUserContext()
-	value, err := fs.client.Float64Variation(featureName, ctx, defaultValue)
-	if err != nil {
-		return defaultValue
-	}
-	return value
+	return ft.whitelist[userID]
 }
 
-func (fs *FeatureService) JSONFeature(featureName string, defaultValue interface{}, valuePointer interface{}) error {
-	if !fs.retrieved || fs.client == nil {
-		return fmt.Errorf("feature service not ready")
-	}
+func (ft *FeatureToggle) AddToWhitelist(userID string) {
+	ft.mu.Lock()
+	defer ft.mu.Unlock()
+	ft.whitelist[userID] = true
+}
 
-	ctx := fs.getUserContext()
-	result, err := fs.client.JSONVariation(featureName, ctx, nil)
-	if err != nil {
-		if defaultValue != nil {
-			defaultJSON, err := json.Marshal(defaultValue)
-			if err != nil {
-				return fmt.Errorf("feature flag and default value failed: %w", err)
-			}
-			return json.Unmarshal(defaultJSON, valuePointer)
-		}
-		return err
-	}
+func (ft *FeatureToggle) RemoveFromWhitelist(userID string) {
+	ft.mu.Lock()
+	defer ft.mu.Unlock()
+	delete(ft.whitelist, userID)
+}
 
-	resultJSON, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Errorf("failed to marshal feature flag value: %w", err)
+func (ft *FeatureToggle) AddUsersToWhitelist(userIDs []string) {
+	ft.mu.Lock()
+	defer ft.mu.Unlock()
+	for _, userID := range userIDs {
+		ft.whitelist[userID] = true
 	}
+}
 
-	return json.Unmarshal(resultJSON, valuePointer)
+func (ft *FeatureToggle) GetWhitelistedUsers() []string {
+	ft.mu.RLock()
+	defer ft.mu.RUnlock()
+
+	users := make([]string, 0, len(ft.whitelist))
+	for userID := range ft.whitelist {
+		users = append(users, userID)
+	}
+	return users
+}
+
+func (ft *FeatureToggle) IsGloballyEnabled() bool {
+	ft.mu.RLock()
+	defer ft.mu.RUnlock()
+	return ft.enabled
+}
+
+func (ft *FeatureToggle) Name() string {
+	return ft.name
 }
