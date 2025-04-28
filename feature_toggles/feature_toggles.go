@@ -2,108 +2,153 @@ package feature_toggles
 
 import (
 	"sync"
+	"time"
 )
 
 type FeatureToggle struct {
-	name      string
+	Name        string
+	Description string
+	Active      bool
+	Whitelist   map[string]bool
+	mu          sync.RWMutex
+}
+
+type FeatureToggleCache struct {
+	toggles       map[string]*FeatureToggle
+	userDecisions map[string]map[string]cacheEntry
+	mu            sync.RWMutex
+}
+
+type cacheEntry struct {
 	enabled   bool
-	whitelist map[string]bool
-	mu        sync.RWMutex
+	expiresAt time.Time
 }
 
-type FeatureManager struct {
-	toggles map[string]*FeatureToggle
-	mu      sync.RWMutex
-}
+const (
+	DefaultCacheDuration = 30 * 30 * 30 * 30 * time.Hour
+)
 
-func NewFeatureManager() *FeatureManager {
-	return &FeatureManager{
-		toggles: make(map[string]*FeatureToggle),
+func NewFeatureToggleCache() *FeatureToggleCache {
+	return &FeatureToggleCache{
+		toggles:       make(map[string]*FeatureToggle),
+		userDecisions: make(map[string]map[string]cacheEntry),
 	}
 }
 
-func (fm *FeatureManager) CreateFeature(name string, enabled bool) *FeatureToggle {
-	fm.mu.Lock()
-	defer fm.mu.Unlock()
+func (c *FeatureToggleCache) RegisterToggle(name, description string, active bool) *FeatureToggle {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	toggle := &FeatureToggle{
-		name:      name,
-		enabled:   enabled,
-		whitelist: make(map[string]bool),
+		Name:        name,
+		Description: description,
+		Active:      active,
+		Whitelist:   make(map[string]bool),
 	}
-
-	fm.toggles[name] = toggle
+	c.toggles[name] = toggle
 	return toggle
 }
 
-func (fm *FeatureManager) GetFeature(name string) (*FeatureToggle, bool) {
-	fm.mu.RLock()
-	defer fm.mu.RUnlock()
+func (c *FeatureToggleCache) GetToggle(name string) (*FeatureToggle, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
-	toggle, ok := fm.toggles[name]
-	return toggle, ok
+	toggle, exists := c.toggles[name]
+	return toggle, exists
 }
 
-func (ft *FeatureToggle) EnableFeature() {
-	ft.mu.Lock()
-	defer ft.mu.Unlock()
-	ft.enabled = true
+func (t *FeatureToggle) AddToWhitelist(userID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.Whitelist[userID] = true
 }
 
-func (ft *FeatureToggle) DisableFeature() {
-	ft.mu.Lock()
-	defer ft.mu.Unlock()
-	ft.enabled = false
+func (t *FeatureToggle) RemoveFromWhitelist(userID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	delete(t.Whitelist, userID)
 }
 
-func (ft *FeatureToggle) IsEnabled(userID string) bool {
-	ft.mu.RLock()
-	defer ft.mu.RUnlock()
+func (t *FeatureToggle) IsWhitelisted(userID string) bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 
-	if ft.enabled {
-		return true
+	return t.Whitelist[userID]
+}
+
+func (c *FeatureToggleCache) IsEnabled(featureName, userID string) bool {
+	if enabled, found := c.checkCache(featureName, userID); found {
+		return enabled
 	}
 
-	return ft.whitelist[userID]
+	toggle, exists := c.GetToggle(featureName)
+	if !exists {
+		return false
+	}
+
+	result := false
+	if toggle.Active {
+		result = toggle.IsWhitelisted(userID)
+	} else {
+		result = toggle.IsWhitelisted(userID)
+	}
+
+	c.cacheDecision(featureName, userID, result)
+	return result
 }
 
-func (ft *FeatureToggle) AddToWhitelist(userID string) {
-	ft.mu.Lock()
-	defer ft.mu.Unlock()
-	ft.whitelist[userID] = true
+func (c *FeatureToggleCache) checkCache(featureName, userID string) (bool, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	userCache, exists := c.userDecisions[userID]
+	if !exists {
+		return false, false
+	}
+
+	entry, exists := userCache[featureName]
+	if !exists {
+		return false, false
+	}
+
+	if time.Now().After(entry.expiresAt) {
+		return false, false
+	}
+
+	return entry.enabled, true
 }
 
-func (ft *FeatureToggle) RemoveFromWhitelist(userID string) {
-	ft.mu.Lock()
-	defer ft.mu.Unlock()
-	delete(ft.whitelist, userID)
-}
+func (c *FeatureToggleCache) cacheDecision(featureName, userID string, enabled bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-func (ft *FeatureToggle) AddUsersToWhitelist(userIDs []string) {
-	ft.mu.Lock()
-	defer ft.mu.Unlock()
-	for _, userID := range userIDs {
-		ft.whitelist[userID] = true
+	if _, exists := c.userDecisions[userID]; !exists {
+		c.userDecisions[userID] = make(map[string]cacheEntry)
+	}
+
+	c.userDecisions[userID][featureName] = cacheEntry{
+		enabled:   enabled,
+		expiresAt: time.Now().Add(DefaultCacheDuration),
 	}
 }
 
-func (ft *FeatureToggle) GetWhitelistedUsers() []string {
-	ft.mu.RLock()
-	defer ft.mu.RUnlock()
+func (c *FeatureToggleCache) PurgeExpiredCache() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	users := make([]string, 0, len(ft.whitelist))
-	for userID := range ft.whitelist {
-		users = append(users, userID)
+	now := time.Now()
+
+	for userID, features := range c.userDecisions {
+		for featureName, entry := range features {
+			if now.After(entry.expiresAt) {
+				delete(features, featureName)
+			}
+		}
+
+		if len(features) == 0 {
+			delete(c.userDecisions, userID)
+		}
 	}
-	return users
-}
-
-func (ft *FeatureToggle) IsGloballyEnabled() bool {
-	ft.mu.RLock()
-	defer ft.mu.RUnlock()
-	return ft.enabled
-}
-
-func (ft *FeatureToggle) Name() string {
-	return ft.name
 }

@@ -921,21 +921,17 @@ func InsertUser(db *sql.DB, user User) error {
 feature_toggles
 
 use 
+	cache := NewFeatureToggleCache()
 
-	fm := NewFeatureManager()
+	betaFeature := cache.RegisterToggle("beta-dashboard", "New dashboard UI", false)
 
-	newUIFeature := fm.CreateFeature("new-ui", false)
+	betaFeature.AddToWhitelist("user456")
 
-	newUIFeature.AddToWhitelist("user123")
-	newUIFeature.AddToWhitelist("user456")
+	userID := "user45"
 
-	betaTesters := []string{"user789", "user101"}
-	newUIFeature.AddUsersToWhitelist(betaTesters)
-
-	userID := "user789"
-	if newUIFeature.IsEnabled(userID) {
-		fmt.Println("New UI is enabled for user:", userID)
+	if cache.IsEnabled("beta-dashboard", userID) {
+		fmt.Printf("User %s: Show beta dashboard\n", userID)
 	} else {
-		fmt.Println("New UI is not enabled for user:", userID)
+		fmt.Printf("User %s: Show regular dashboard\n", userID)
 	}
 ```
