@@ -997,3 +997,16 @@ func GetUsers(c *fiber.Ctx) error {
     return c.JSON(pagination)
 }
 ```
+
+```
+bad word
+
+func main() {
+    inputText := "What the hell is this badword1 doing here?"
+    callback := func(matches []string, count int) {}
+    result := BadWords(inputText, nil, callback)
+    fmt.Println("Example 3: Using callback")
+    fmt.Println("Input:", inputText)
+    fmt.Println("Output:", result)
+}
+```
