@@ -20,6 +20,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/mercari/go-circuitbreaker v0.0.2
 	github.com/nats-io/nats.go v1.37.0
+	github.com/qdrant/go-client v1.14.1
 	github.com/redis/go-redis/v9 v9.7.3
 	github.com/sony/gobreaker v1.0.0
 	github.com/streadway/amqp v1.1.0

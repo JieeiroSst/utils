@@ -1010,3 +1010,56 @@ func main() {
     fmt.Println("Output:", result)
 }
 ```
+
+```
+qdrant 
+
+type User struct {
+	Id      uint64  `qdrant:"id"`
+	Name    string  `qdrant:"name"`
+	Age     int     `qdrant:"age"`
+	Email   string  `qdrant:"email"`
+	Score   float32 `qdrant:"score"`
+	Version uint64  `qdrant:"version"`
+}
+
+type Product struct {
+	Id       uint64            `qdrant:"id"`
+	Title    string            `qdrant:"title"`
+	Price    float64           `qdrant:"price"`
+	Tags     []string          `qdrant:"tags"`
+	Metadata map[string]string `qdrant:"metadata"`
+	Score    float32           `qdrant:"score"`
+	Version  uint64            `qdrant:"version"`
+}
+
+func ExampleUsage() {
+	mapper := NewScoredPointMapper()
+
+	var points []*qdrant.ScoredPoint
+
+	var users []User
+	if err := mapper.MapToSlice(points, &users); err != nil {
+		fmt.Printf("Error mapping to users: %v\n", err)
+	}
+
+	var products []*Product
+	if err := mapper.MapToSlice(points, &products); err != nil {
+		fmt.Printf("Error mapping to products: %v\n", err)
+	}
+
+	maps := mapper.ToMaps(points)
+	for _, m := range maps {
+		fmt.Printf("Map: %+v\n", m)
+	}
+
+	if len(points) > 0 {
+		var user User
+		if err := mapper.MapToStruct(points[0], &user); err != nil {
+			fmt.Printf("Error mapping single point: %v\n", err)
+		}
+		fmt.Printf("User: %+v\n", user)
+	}
+}
+
+```
