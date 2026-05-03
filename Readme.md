@@ -1063,3 +1063,24 @@ func ExampleUsage() {
 }
 
 ```
+
+```
+bulkhead
+
+b := bulkhead.New("payment-service",
+    bulkhead.WithMaxConcurrency(10),
+    bulkhead.WithMaxQueueSize(50),
+    bulkhead.WithMaxWait(2*time.Second),
+)
+defer b.Close()
+
+// Compose middleware
+b = bulkhead.WrapTimeout(b, 500*time.Millisecond)
+b = bulkhead.WrapFallback(b, func(ctx context.Context, err error) (interface{}, error) {
+    return cachedResponse, nil
+})
+
+result, err := b.Execute(ctx, func(ctx context.Context) (interface{}, error) {
+    return callDownstreamService(ctx)
+})
+```
