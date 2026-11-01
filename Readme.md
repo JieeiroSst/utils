@@ -1084,3 +1084,26 @@ result, err := b.Execute(ctx, func(ctx context.Context) (interface{}, error) {
     return callDownstreamService(ctx)
 })
 ```
+
+```
+cursor
+
+codec := cp.NewCodec([]byte("change-me-secret"))
+src := cp.NewSliceSource(posts, func(p Post) int { return p.ID })
+pager := cp.New[Post, int](src, codec)
+
+http.HandleFunc("/posts", func(w http.ResponseWriter, r *http.Request) {
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		page, err := pager.Page(r.Context(), r.URL.Query().Get("cursor"), limit)
+		if errors.Is(err, cp.ErrInvalidCursor) {
+			http.Error(w, "invalid cursor", http.StatusBadRequest)
+			return
+		}
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(page)
+	})
+```
